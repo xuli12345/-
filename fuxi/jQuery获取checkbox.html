@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+</head>
+
+<body>
+
+    <input type="checkbox" id="chk1">
+
+    <div>
+        <input type="checkbox" id="chk2">
+        <input type="checkbox" id="chk3">
+    </div>
+
+    <input type="button" value="按钮" id="btn">
+</body>
+
+</html>
+
+
+<script src="../assets/vendors/jquery/jquery.min.js"></script>
+<script>
+
+    // console.log($('input[type=checkbox]'));
+
+    //找到所有的checkbox
+    // console.log($(':checkbox'));
+    // console.log($('div :checkbox'));
+
+    //点击按钮的时候，找到所有被选中的checkbox
+    document.getElementById('btn').onclick = function(){
+
+        //找到所有被选中的checkbox
+        console.log($(':checked'));
+        
+        //找到所有checkbox
+        console.log($(':checkbox'));
+        
+    }
+
+
+</script>

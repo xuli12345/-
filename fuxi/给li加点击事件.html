@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+</head>
+<body>
+    <ul>
+        <li>隔壁老王1</li>
+        <li>隔壁老王2</li>
+        <li>隔壁老王3</li>
+        <li>隔壁老王4</li>
+        <li>隔壁老王5</li>
+        <p>这是p</p>
+        <span>这是span</span>
+    </ul>
+
+    <input type="button" value="添加新的li" id="btn">
+</body>
+</html>
+
+<script src="../assets/vendors/jquery/jquery.min.js"></script>
+
+<script>
+    // $('li').click(function(){
+
+    //     alert(123);
+    // });
+
+    $('#btn').click(function(){
+
+        $('ul').append( '<li>新的li</li>');
+    });
+
+    //事件如果加到父元素身上，那么新添加的li也会有点击事件，因为有事件冒泡存在
+    //但是这样做，会让所有子元素都能触发事件
+    // $('ul').click(function(){
+
+    //     alert('ul事件触发了');
+    // });
+
+
+    //我需要既能满足新的li也有点击事件，又要满足只能由li触发事件
+    //就需要on做事件委托
+    $('ul').on('click','li',function(){
+
+        alert('123');
+    })
+</script>

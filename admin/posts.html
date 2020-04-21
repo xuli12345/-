@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<!-- 
+
+   1.完成文章数据展示
+      1.1 先写一个获取文章分页数据的接口，接口需要传入2个参数：pageIndex:要查的页码，pageSize：每页容量
+              1.1.1 这个接口里要连表查询，查posts表、users表、categories表
+                      连表对应条件为：p.user_id = u.id   p.category_id = c.id
+              1.1.2  算出limit的起点： ( $pageIndex - 1 ) * $pageSize
+              1.1.3  然后用去掉limit的sql语句来查出总数据的个数，再用 ceil( 总数据个数 / 页容量 ) 得到总页数
+              1.1.4  把查到的分页数据和总页数拼成关联型数组
+              1.1.5  把关联型数组转成JSON输出
+
+      1.2 来到posts.html，发一个对上面接口的请求，拿到响应体后，准备一个生成tr的模板，再加到tbody里
+              模板里要判断状态如果为published就给已发布，否则给草稿
+  
+  2.完成页码显示与页码的点击事件
+      2.1 先导入插件
+      2.2 在上面发请求的响应完成事件里，调用插件生成页码，设置总页数为接口返回的总页数，以及禁用页面一打开就自动调用点击事件、和设置可见页数、上一页下一页文字等（简单来说就是对插件进行初始化）
+      2.3 把发请求的代码封装成函数叫loadData，这个函数接收一个形参page，传入几就查第几页数据
+      2.4 在页码的点击事件里调用这个函数
+
+
+  3.完成筛选功能
+      3.1 先写一个接口，获取所有分类
+          3.1.1 在posts.html里页面一打开就发起对这个接口的请求，拿到数据，并创建option添加到分类下拉框（记得给分类下拉框和状态下拉框各自加id  以及把默认未分类的那个option删掉）
+
+      3.2 给筛选按钮加一个id，然后给它加一个点击事件
+          3.2.1 点击事件里先阻止它的事件默认行为（因为双标签button在表单里相当于是提交按钮，需要阻止它跳转）
+      
+      3.3 根据分析筛选功能，其实就是在原来查出文章数据的sql语句里多加两个条件：
+            and c.name ='会生活'
+            and p.status = 'published'
+          但是，如果是所有分类，就不需要加and c.name ='会生活'，如果是所有状态，就不需要加and p.status = 'published'
+          
+          所以修改原来获取文章的接口，多获取两个参数，一个叫category,一个叫status，用来接收下拉框选中的值
+          再把SQL语句拆分一下，把limit语句和上部分sql语句拆分
+          然后在中间做判断：如果 category不等于所有分类，就加 and c.name ='$category'
+          如果status不等于所有状态，就加  and p.status = '$status'
+
+      3.4 此时因为接口修改后，打开文章页获取不到文章，因为之前写的请求接口的代码只传了2个参数，而现在要传4个参数
+          所以修改loadData里的请求，在提交的数据里多加两个参数：category 和 status，分别取分类下拉框和状态下拉框的value
+
+           3.4.1 删掉所有分类和所有状态的的value属性 ，并且在状态下拉框里给已发布加value值为published，给草稿加value值为drafted（ 因为分类直接要文字，所以不用给value属性，但是状态要英文的，所以给value属性 ）
+
+      3.5 在筛选按钮的点击事件里，调用loadData(1) 就能重新根据最新的分类和状态去查数据了
+
+
+    4.解决分页插件不能生成新的总页数的问题
+        4.1 在分页初始化之前，先调用 destroy，摧毁插件
+        4.2 无论点击哪一页，默认都是让第一页高亮，所以要设置startPage:当前页
+
+-->
+
+<!-- 
+
+  任何插件使用步骤几乎就两大步：
+        1.导入插件
+        2.使用插件：
+              1.有些插件需要先准备html结构
+              2.准备完结构，再调用初始化方法（一般初始化方法，都是以自己插件名字命名的方法）
+
+  分页插件使用步骤：
+        1.导入插件：注意它是基于jQuery的，所以要导入在jQuery的后面
+        2.准备一个UL
+        3.找到UL，并调用初始化方法(twbsPagination)
+
+-->
+
+<head>
+  <!-- 应该在刚刚访问页面的时候就先发一个请求去判断有没有登录,按ctrl+f5，跳过缓存来刷新  -->
+  <script>
+    var xhr = new XMLHttpRequest();
+    // 参数3：是否异步，true代表异步，false为同步
+    // 为什么同步？因为我们需要等待服务器告诉我们又没有登录，我们再决定要不要解析后面的HTML代码
+    xhr.open('get', 'api/checkLogin.php', false);
+
+    xhr.onreadystatechange = function () {
+
+      if (xhr.readyState == 4 && xhr.status == 200) {
+
+        //响应体解析成JS对象
+        var obj = JSON.parse(xhr.responseText);
+
+        //可以用code判断也可以用msg判断，自己选
+        if (obj.code != 0) {
+
+          //就代表没有登录过，应该打回登录页面
+          location = "login.html";
+        }
+      }
+    }
+    //发送请求
+    xhr.send();
+
+  </script>
+  <meta charset="utf-8">
+  <title>Posts &laquo; Admin</title>
+  <link rel="stylesheet" href="../assets/vendors/bootstrap/css/bootstrap.css">
+  <link rel="stylesheet" href="../assets/vendors/font-awesome/css/font-awesome.css">
+  <link rel="stylesheet" href="../assets/vendors/nprogress/nprogress.css">
+  <link rel="stylesheet" href="../assets/css/admin.css">
+  <script src="../assets/vendors/nprogress/nprogress.js"></script>
+</head>
+
+<body>
+  <script>NProgress.start()</script>
+
+  <div class="main">
+    <nav class="navbar">
+      <button class="btn btn-default navbar-btn fa fa-bars"></button>
+      <ul class="nav navbar-nav navbar-right">
+        <li><a href="profile.html"><i class="fa fa-user"></i>个人中心</a></li>
+        <li><a href="api/doLogout.php"><i class="fa fa-sign-out"></i>退出</a></li>
+      </ul>
+    </nav>
+    <div class="container-fluid">
+      <div class="page-title">
+        <h1>所有文章</h1>
+        <a href="post-add.html" class="btn btn-primary btn-xs">写文章</a>
+      </div>
+      <!-- 有错误信息时展示 -->
+      <!-- <div class="alert alert-danger">
+        <strong>错误！</strong>发生XXX错误
+      </div> -->
+      <div class="page-action">
+        <!-- show when multiple checked -->
+        <a class="btn btn-danger btn-sm" href="javascript:;" style="display: none">批量删除</a>
+        <form class="form-inline">
+
+          <select id="selCategory" name="" class="form-control input-sm">
+            <option>所有分类</option>
+          </select>
+
+
+          <select id="selStatus" name="" class="form-control input-sm">
+            <option>所有状态</option>
+            <option value="drafted">草稿</option>
+            <option value="published">已发布</option>
+          </select>
+
+          <button id="btnSearch" class="btn btn-default btn-sm">筛选</button>
+        </form>
+        <ul class="pagination pagination-sm pull-right">
+          <li><a href="#">上一页</a></li>
+          <li><a href="#">1</a></li>
+          <li><a href="#">2</a></li>
+          <li><a href="#">3</a></li>
+          <li><a href="#">下一页</a></li>
+        </ul>
+      </div>
+      <table class="table table-striped table-bordered table-hover">
+        <thead>
+          <tr>
+            <th class="text-center" width="40"><input type="checkbox"></th>
+            <th>标题</th>
+            <th>作者</th>
+            <th>分类</th>
+            <th class="text-center">发表时间</th>
+            <th class="text-center">状态</th>
+            <th class="text-center" width="100">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="text-center"><input type="checkbox"></td>
+            <td>随便一个名称</td>
+            <td>小小</td>
+            <td>潮科技</td>
+            <td class="text-center">2016/10/07</td>
+            <td class="text-center">已发布</td>
+            <td class="text-center">
+              <a href="javascript:;" class="btn btn-default btn-xs">编辑</a>
+              <a href="javascript:;" class="btn btn-danger btn-xs">删除</a>
+            </td>
+          </tr>
+          <tr>
+            <td class="text-center"><input type="checkbox"></td>
+            <td>随便一个名称</td>
+            <td>小小</td>
+            <td>潮科技</td>
+            <td class="text-center">2016/10/07</td>
+            <td class="text-center">已发布</td>
+            <td class="text-center">
+              <a href="javascript:;" class="btn btn-default btn-xs">编辑</a>
+              <a href="javascript:;" class="btn btn-danger btn-xs">删除</a>
+            </td>
+          </tr>
+          <tr>
+            <td class="text-center"><input type="checkbox"></td>
+            <td>随便一个名称</td>
+            <td>小小</td>
+            <td>潮科技</td>
+            <td class="text-center">2016/10/07</td>
+            <td class="text-center">已发布</td>
+            <td class="text-center">
+              <a href="javascript:;" class="btn btn-default btn-xs">编辑</a>
+              <a href="javascript:;" class="btn btn-danger btn-xs">删除</a>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="aside">
+    <div class="profile">
+      <img class="avatar" src="../uploads/avatar.jpg">
+      <h3 class="name">布头儿</h3>
+    </div>
+    <ul class="nav">
+      <li>
+        <a href="index.html"><i class="fa fa-dashboard"></i>仪表盘</a>
+      </li>
+      <li class="active">
+        <a href="#menu-posts" data-toggle="collapse">
+          <i class="fa fa-thumb-tack"></i>文章<i class="fa fa-angle-right"></i>
+        </a>
+        <ul id="menu-posts" class="collapse in">
+          <li class="active"><a href="posts.html">所有文章</a></li>
+          <li><a href="post-add.html">写文章</a></li>
+          <li><a href="categories.html">分类目录</a></li>
+        </ul>
+      </li>
+      <li>
+        <a href="comments.html"><i class="fa fa-comments"></i>评论</a>
+      </li>
+      <li>
+        <a href="users.html"><i class="fa fa-users"></i>用户</a>
+      </li>
+      <li>
+        <a href="#menu-settings" class="collapsed" data-toggle="collapse">
+          <i class="fa fa-cogs"></i>设置<i class="fa fa-angle-right"></i>
+        </a>
+        <ul id="menu-settings" class="collapse">
+          <li><a href="nav-menus.html">导航菜单</a></li>
+          <li><a href="slides.html">图片轮播</a></li>
+          <li><a href="settings.html">网站设置</a></li>
+        </ul>
+      </li>
+    </ul>
+  </div>
+
+  <script src="../assets/vendors/jquery/jquery.js"></script>
+  <script src="../assets/vendors/bootstrap/js/bootstrap.js"></script>
+  <script>NProgress.done()</script>
+</body>
+
+</html>
+
+<!-- 导入分页插件 -->
+<script src="../assets/vendors/twbs-pagination/jquery.twbsPagination.min.js"></script>
+
+<!-- 导入模板 -->
+<script src="../assets/vendors/template-web.js"></script>
+
+<!-- 准备生成tr的模板 -->
+<script type="text/html" id="tplTr">
+
+{{ each list value }}
+  <tr>
+    <td class="text-center"><input type="checkbox"></td>
+    <td>{{value.title}}</td>
+    <td>{{value.nickname}}</td>
+    <td>{{value.name}}</td>
+    <td class="text-center">{{value.created}}</td>
+  {{ if value.status == 'published' }}
+    <td class="text-center">已发布</td>
+  {{ else }}
+    <td class="text-center">草稿</td>
+  {{ /if }}
+    <td class="text-center">
+      <a href="post-edit.html?id={{value.id}}" class="btn btn-default btn-xs">编辑</a>
+      <a href="javascript:;" class="btn btn-danger btn-xs">删除</a>
+    </td>
+  </tr>
+{{ /each }}
+
+</script>
+
+
+<script>
+
+  //封装的查询分页数据函数
+  function loadData(page) {
+
+    $.get({
+      url: "api/getPosts.php",
+      data: { pageIndex: page, pageSize: 10, category: $('#selCategory').val() , status:$('#selStatus').val() },
+      dataType: "json",
+      success: function (obj) {
+
+        console.log(obj);
+        //调用模板生成tr
+        var html = template('tplTr', { list: obj.data });
+        $('tbody').html(html);
+        
+        //先把上一次生成的分页全部删掉
+        $('.pagination').twbsPagination('destroy');
+
+        //这个插件，只有第一次初始化有用，后面再初始化没有用
+        //所以你后面几次给不同的总页数是没有用的
+        //解决办法：就让它每次来生成都是第一次，也就是在初始化之前先把它摧毁掉（或者说删掉）
+        $('.pagination').twbsPagination({
+          // 设置总页数
+          totalPages: obj.totalPages,
+          // 设置可见页数，如果不设置默认为5
+          visiblePages: 5,
+          //设置让哪一页高亮，默认是让第一页高亮
+          //加载第几页的数据，就让第几页高亮
+          startPage:page,
+          first: "首页",
+          prev: "上一页",
+          next: "下一页",
+          last: "尾页",
+          // 因为插件默认会自动调用一次初始页的点击事件，但是没有必要，没有必要就把下面的属性改成false
+          initiateStartPageClick: false,
+          // 页码的点击事件，第二个参数是被点击的页码数
+          onPageClick: function (event, page) {
+            
+            //谁被点击，就加载第几页的数据
+            loadData(page);
+
+          }
+        });
+      }
+    });
+  }
+
+  //默认查第一页
+  loadData(1);
+
+
+  //发起一个get请求，去请求分类的数据
+  $.get({
+
+    url:"api/getCategory.php",
+    dataType:"json",
+    success:function(obj){
+
+      // console.log(obj);
+      //遍历这个数组，数组有多少个元素就创建多少个option
+      for(var i = 0; i < obj.length; i++){
+
+        //创建option并添加到分类的下拉框
+        $('<option>' + obj[i].name + '</option>').appendTo( $('#selCategory') );
+      }
+      
+    }
+  });
+
+
+  // 给筛选加点击事件
+  $('#btnSearch').click(function(e){
+    //阻止跳转
+    e.preventDefault();
+
+    //调用loadData加载数据
+    loadData(1);
+  });
+
+
+  
+</script>

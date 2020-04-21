@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+
+    <!-- 
+        location对象：代表的是浏览器地址栏
+
+        location.href 拿到地址栏上的url(就是拿到网址)
+                      也可以设置，设置就是跳转网页
+
+                      如果只是为了跳转，也可以直接写 location = "路径" 等价于 location.href = "路径"
+
+
+        location.reload： 刷新当前网站
+ 
+     -->
+</head>
+
+<body>
+    <input type="button" value="获取网址" id="btn1">
+    <input type="button" value="跳转网页" id="btn2">
+    <input type="button" value="刷新网页" id="btn3">
+</body>
+
+</html>
+
+<script>
+
+    document.getElementById('btn1').onclick = function () {
+
+        //拿到当前地址栏上的url
+        console.log(location.href);
+
+    }
+
+    document.getElementById('btn2').onclick = function () {
+
+        //跳转网页的
+        // location.href = "http://www.itcast.cn";
+
+        location = "http://www.itcast.cn";
+
+    }
+
+
+    document.getElementById('btn3').onclick = function(){
+
+        location.reload();
+    }
+</script>

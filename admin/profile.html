@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <!-- 
+
+    1.在本页面加载完毕后，发起一个请求，请求到获取登录用户信息的接口（之前已经写好这个接口，看文档请求就可以了）
+        1.1 响应完成后把数据显示到界面上
+              注意：给img加一个id，方便找到它，因为要用img显示图片
+
+
+    2.给更新按钮加一个id，并写一个点击事件
+        2.1 点击事件里先阻止事件默认行为
+        2.2 写一个修改用户的接口，这个接口接收4个参数分别是头像、别名、昵称、简介
+        2.3 接口里拿到提交的数据，然后用update语句更新数据库
+        2.4 回到本文件的点击事件，创建FormData对象并传入表单对象（记得先给file和textarea加name属性，不然拿不到它们的值）
+        2.5 发起一个对上面接口的请求，传入FormData对象
+        2.6 响应完成如果成功刷新当前页
+
+        2.7 解决刷新后界面还显示原来数据的bug:
+                原因分析：虽然调用了接口，也成功修改了数据库，但是刷新的时候获取用户信息是从session里获取的，但是session里的数据没变过，还是登录的时候记录下来的用户信息，所以当你刷新页面请求session信息时还是原来的数据
+
+                解决办法：修改用户接口里，如果数据库修改成功，还要把对应的值也修改到session里
+
+        2.8 解决不改图片会造成图片缺失的问题
+                原因分析：因为你不改图片就证明没动过file，没动过file,那么file的值一定为空，这样当你提交到数据库时就把avatar字段也赋值成了空
+
+                要注意：不要以为界面上看到图片了就以为file有值，能看到图片只跟img有关，跟file没有半毛钱关系
+
+                解决办法：在修改用户的接口里判断$name是否为空，如果不为空才修改avatar，如果为空就不修改avatar字段
+
+                同样，记得在session里也要做判断吗，如果$name不为空才修改session（如果不这么做，会导致session里存的图片变空）
+
+
+    3.给file加图片预览功能
+        3.1 给file加change事件，把图片转成历史url给img的src
+
+  -->
+<head>
+    <!-- 应该在刚刚访问页面的时候就先发一个请求去判断有没有登录,按ctrl+f5，跳过缓存来刷新  -->
+    <script>
+        var xhr = new XMLHttpRequest();
+        // 参数3：是否异步，true代表异步，false为同步
+        // 为什么同步？因为我们需要等待服务器告诉我们又没有登录，我们再决定要不要解析后面的HTML代码
+        xhr.open('get','api/checkLogin.php',false);
+  
+        xhr.onreadystatechange = function(){
+  
+          if(xhr.readyState == 4 && xhr.status == 200){
+  
+            //响应体解析成JS对象
+            var obj = JSON.parse(xhr.responseText);
+            
+            //可以用code判断也可以用msg判断，自己选
+            if(obj.code != 0){
+  
+              //就代表没有登录过，应该打回登录页面
+              location = "login.html";
+            }
+          }
+        }
+        //发送请求
+        xhr.send();
+  
+    </script>
+  <meta charset="utf-8">
+  <title>Dashboard &laquo; Admin</title>
+  <link rel="stylesheet" href="../assets/vendors/bootstrap/css/bootstrap.css">
+  <link rel="stylesheet" href="../assets/vendors/font-awesome/css/font-awesome.css">
+  <link rel="stylesheet" href="../assets/vendors/nprogress/nprogress.css">
+  <link rel="stylesheet" href="../assets/css/admin.css">
+  <script src="../assets/vendors/nprogress/nprogress.js"></script>
+</head>
+<body>
+  <script>NProgress.start()</script>
+
+  <div class="main">
+    <nav class="navbar">
+      <button class="btn btn-default navbar-btn fa fa-bars"></button>
+      <ul class="nav navbar-nav navbar-right">
+        <li><a href="profile.html"><i class="fa fa-user"></i>个人中心</a></li>
+        <li><a href="api/doLogout.php"><i class="fa fa-sign-out"></i>退出</a></li>
+      </ul>
+    </nav>
+    <div class="container-fluid">
+      <div class="page-title">
+        <h1>我的个人资料</h1>
+      </div>
+      <!-- 有错误信息时展示 -->
+      <!-- <div class="alert alert-danger">
+        <strong>错误！</strong>发生XXX错误
+      </div> -->
+      <form class="form-horizontal">
+        <div class="form-group">
+          <label class="col-sm-3 control-label">头像</label>
+          <div class="col-sm-6">
+            <label class="form-image">
+              <input id="avatar" name="avatar" type="file">
+              <img id="icon" src="../assets/img/default.png">
+              <i class="mask fa fa-upload"></i>
+            </label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="email" class="col-sm-3 control-label">邮箱</label>
+          <div class="col-sm-6">
+            <input id="email" class="form-control" name="email" type="type" value="w@zce.me" placeholder="邮箱" readonly>
+            <p class="help-block">登录邮箱不允许修改</p>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="slug" class="col-sm-3 control-label">别名</label>
+          <div class="col-sm-6">
+            <input id="slug" class="form-control" name="slug" type="type" value="zce" placeholder="slug">
+            <p class="help-block">https://zce.me/author/<strong>zce</strong></p>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="nickname" class="col-sm-3 control-label">昵称</label>
+          <div class="col-sm-6">
+            <input id="nickname" class="form-control" name="nickname" type="type" value="汪磊" placeholder="昵称">
+            <p class="help-block">限制在 2-16 个字符</p>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="bio" class="col-sm-3 control-label">简介</label>
+          <div class="col-sm-6">
+            <textarea id="bio" name="bio" class="form-control" placeholder="Bio" cols="30" rows="6">MAKE IT BETTER!</textarea>
+          </div>
+        </div>
+        <div class="form-group">
+          <div class="col-sm-offset-3 col-sm-6">
+            <button id="save" type="submit" class="btn btn-primary">更新</button>
+            <a class="btn btn-link" href="password-reset.html">修改密码</a>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="aside">
+    <div class="profile">
+      <img class="avatar" src="../uploads/avatar.jpg">
+      <h3 class="name">布头儿</h3>
+    </div>
+    <ul class="nav">
+      <li>
+        <a href="index.html"><i class="fa fa-dashboard"></i>仪表盘</a>
+      </li>
+      <li>
+        <a href="#menu-posts" class="collapsed" data-toggle="collapse">
+          <i class="fa fa-thumb-tack"></i>文章<i class="fa fa-angle-right"></i>
+        </a>
+        <ul id="menu-posts" class="collapse">
+          <li><a href="posts.html">所有文章</a></li>
+          <li><a href="post-add.html">写文章</a></li>
+          <li><a href="categories.html">分类目录</a></li>
+        </ul>
+      </li>
+      <li>
+        <a href="comments.html"><i class="fa fa-comments"></i>评论</a>
+      </li>
+      <li>
+        <a href="users.html"><i class="fa fa-users"></i>用户</a>
+      </li>
+      <li>
+        <a href="#menu-settings" class="collapsed" data-toggle="collapse">
+          <i class="fa fa-cogs"></i>设置<i class="fa fa-angle-right"></i>
+        </a>
+        <ul id="menu-settings" class="collapse">
+          <li><a href="nav-menus.html">导航菜单</a></li>
+          <li><a href="slides.html">图片轮播</a></li>
+          <li><a href="settings.html">网站设置</a></li>
+        </ul>
+      </li>
+    </ul>
+  </div>
+
+  <script src="../assets/vendors/jquery/jquery.js"></script>
+  <script src="../assets/vendors/bootstrap/js/bootstrap.js"></script>
+  <script>NProgress.done()</script>
+</body>
+</html>
+
+
+<script>
+
+  //1. 获取登录用户信息并展现到界面上
+  $.get({
+    url:"api/getUserInfo.php",
+    dataType:"json",
+    success:function(obj){
+
+      // console.log(obj);
+      $('#icon').attr('src',obj.avatar);
+      $('#email').val(obj.email);
+      $('#slug').val(obj.slug);
+      $('#nickname').val(obj.nickname);
+      // 文本域可以给val也可以给html，但是建议给html
+      $('#bio').html(obj.bio);
+      
+    }
+  })
+
+  //2. 给更新加点击事件
+  $('#save').click(function(e){
+
+    //2.1 阻止事件默认行为
+    e.preventDefault();
+    
+    //先获取一下界面上输出的内容，拿到所有带name属性的表单元素
+    //文本域也是表单元素
+    var fm = new FormData($('form')[0]);
+    // console.log(fm.get('avatar'));
+    // console.log(fm.get('nickname'));
+    // console.log(fm.get('bio'));
+    // console.log(fm.get('slug'));
+    
+    $.post({
+
+      url:"api/updateUser.php",
+      data:fm,
+      contentType:false,
+      processData:false,
+      dataType:"json",
+      success:function(obj){
+
+        if(obj.msg == "ok"){
+
+            //刷新当前页
+            location.reload();
+
+        }else{
+
+          alert('修改失败');
+        }
+      }
+    });
+  });
+
+
+  //3. 给file加change事件，里面做图片预览
+  $('#avatar').change(function(){
+
+    var url = URL.createObjectURL(this.files[0]);
+    $('#icon').attr('src',url);
+  });
+</script>

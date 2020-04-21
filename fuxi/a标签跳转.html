@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+</head>
+
+<body>
+
+    <!-- a标签默认有点击事件，它的点击事件就是跳转到href里指定的url
+         "javascript:void(0)" 就代表告诉a标签，你的跳转交给JS去处理
+         怎么处理呢？就是:后面的部分，:后面写void(0)就代表不处理
+
+         第一介绍了阻止跳转的原理
+         第二让大家知道了a标签如何加行内的点击事件
+
+         行内点击事件，如果要调用自己声明的函数，那么你必须保证你的函数是在0级作用域上
+    -->
+    <a href="javascript:test()">点我跳转</a>
+
+    <input type="button" onclick="alert('aaa')" value="点我">
+
+</body>
+
+</html>
+
+<script src="../assets/vendors/jquery/jquery.min.js"></script>
+
+<script>
+
+    // $(function () {
+        
+    //     //1级
+    //     function test() {
+
+    //         alert('我是test');
+    //     }
+    // })
+</script>
